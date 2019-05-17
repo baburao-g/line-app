@@ -6,11 +6,34 @@ const fs = require('fs');
 const path = require('path');
 const cp = require('child_process');
 const ngrok = require('ngrok');
-
+const axios = require('axios');
+let requestJson = {
+  "messageVersion": "1.0",
+  "invocationSource": "DialogCodeHook",
+  "userId": "John",
+  "sessionAttributes": {},
+  "bot": {
+    "name": "BookTrip",
+    "alias": "$LATEST",
+    "version": "$LATEST"
+  },
+  "outputDialogMode": "Text",
+  "currentIntent": {
+    "name": "BookCar",
+    "slots": {
+      "PickUpDate": null,
+      "PickUpCity": null,
+      "ReturnDate": null,
+      "CarType": null,
+      "DriverAge": null
+    },
+    "confirmationStatus": "None"
+  }
+};
 // create LINE SDK config from env variables
 const config = {
-  channelAccessToken: '+rP11CXzIJW4UESA0e8cPz9ghn/uTnRh0tENsitjaHFyr9uq4+2ipFfuYV60UyeqsN93BD+EyXI2/KYPwHNbwGY+Ib5i4gsnWX2ViljOhYGMaNlR+1PvnA4bzAFAwjM3asGlt2UagNoy7lfi1vFJDQdB04t89/1O/w1cDnyilFU=',
-  channelSecret: 'e27809ae49c981ded2c45f016d36783c',
+  channelAccessToken: 'J9ENTMHNs9y5XiRi85yC1i84HVq0q4HucK1gmrAWjl7mPDanJ6bDPsPeSDZ/Mm4wsN93BD+EyXI2/KYPwHNbwGY+Ib5i4gsnWX2ViljOhYGLJKkVUdbAh0JuXiayTkdoeyYRdSj0p/+WD2DFX0Y/ZwdB04t89/1O/w1cDnyilFU=',
+  channelSecret: 'd4ad94455611c07577b82fe0aeb3dfe6',
 };
 
 // base URL for webhook server
@@ -277,19 +300,76 @@ function handleText(message, replyToken, source) {
         }
       );
     case 'bye':
-      switch (source.type) {
-        case 'user':
-          return replyText(replyToken, 'Bot can\'t leave from 1:1 chat');
-        case 'group':
-          return replyText(replyToken, 'Leaving group')
-            .then(() => client.leaveGroup(source.groupId));
-        case 'room':
-          return replyText(replyToken, 'Leaving room')
-            .then(() => client.leaveRoom(source.roomId));
-      }
+      requestJson = {
+        "messageVersion": "1.0",
+        "invocationSource": "DialogCodeHook",
+        "userId": "John",
+        "sessionAttributes": {},
+        "bot": {
+          "name": "BookTrip",
+          "alias": "$LATEST",
+          "version": "$LATEST"
+        },
+        "outputDialogMode": "Text",
+        "currentIntent": {
+          "name": "BookCar",
+          "slots": {
+            "PickUpDate": null,
+            "PickUpCity": null,
+            "ReturnDate": null,
+            "CarType": null,
+            "DriverAge": null
+          },
+          "confirmationStatus": "None"
+        }
+      };
+      replyText(replyToken, "Cancelled");
     default:
       console.log(`Echo message to ${replyToken}: ${message.text}`);
-      return replyText(replyToken, `do you mean ${message.text}?`);
+
+      let nullObj = getNullObject(requestJson.currentIntent.slots);
+      if (nullObj === "PickUpCity") {
+        requestJson.currentIntent.slots.PickUpCity = message.text;
+      }
+      else if (nullObj === "PickUpDate") {
+        requestJson.currentIntent.slots.PickUpDate = message.text;
+      }
+      else if (nullObj === "ReturnDate") {
+        requestJson.currentIntent.slots.ReturnDate = message.text;
+      }
+
+
+      resultMsg = axios.post('https://8uhh64u2h5.execute-api.us-east-1.amazonaws.com/dev/callback', requestJson)
+        .then((res) => {
+          console.log('----res', res);
+          requestJson.currentIntent.slots = res.data.dialogAction.slots;
+          let replyMsg = null;
+
+          if (res.data.dialogAction.slots.PickUpCity === null) {
+            replyMsg = res.data.dialogAction && res.data.dialogAction.message && res.data.dialogAction.message.content;
+          } else if (res.data.dialogAction.slots.PickUpDate === null) {
+            replyMsg = res.data.dialogAction && res.data.dialogAction.message && res.data.dialogAction.message.content || "Please provide pickup date";
+          } else if (res.data.dialogAction.slots.ReturnDate === null) {
+            replyMsg = res.data.dialogAction && res.data.dialogAction.message && res.data.dialogAction.message.content || "Please provide Return date";
+          }
+
+          console.log(`-----------Error: `, res.data.dialogAction && res.data.dialogAction.message && res.data.dialogAction.message.content);
+          replyText(replyToken, res.data.dialogAction && res.data.dialogAction.message && res.data.dialogAction.message.content || replyMsg)
+        })
+        .catch((error) => {
+          console.error(error)
+        });
+  }
+}
+
+function getNullObject(obj) {
+  if (obj.PickUpCity === null || obj.PickUpCity === "c") {
+    return "PickUpCity";
+  }
+  if (obj.PickUpDate === null) {
+    return "PickUpDate";
+  } if (obj.ReturnDate === null) {
+    return "ReturnDate";
   }
 }
 
@@ -369,7 +449,7 @@ function handleAudio(message, replyToken) {
     getContent = downloadContent(message.id, downloadPath)
       .then((downloadPath) => {
         return {
-            originalContentUrl: baseURL + '/downloaded/' + path.basename(downloadPath),
+          originalContentUrl: baseURL + '/downloaded/' + path.basename(downloadPath),
         };
       });
   } else {
