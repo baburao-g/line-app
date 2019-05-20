@@ -1,56 +1,29 @@
 'use strict';
-
 const line = require('@line/bot-sdk');
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const cp = require('child_process');
-const ngrok = require('ngrok');
-const axios = require('axios');
-let requestJson = {
-  "messageVersion": "1.0",
-  "invocationSource": "DialogCodeHook",
-  "userId": "John",
-  "sessionAttributes": {},
-  "bot": {
-    "name": "BookTrip",
-    "alias": "$LATEST",
-    "version": "$LATEST"
-  },
-  "outputDialogMode": "Text",
-  "currentIntent": {
-    "name": "BookCar",
-    "slots": {
-      "PickUpDate": null,
-      "PickUpCity": null,
-      "ReturnDate": null,
-      "CarType": null,
-      "DriverAge": null
-    },
-    "confirmationStatus": "None"
-  }
-};
+var AWS = require('aws-sdk');
+var uuidv4 = require('uuid/v4');
+
+// create AWS SDK config from env variables
+AWS.config.update({
+  accessKeyId: "accessKeyId",
+  secretAccessKey: "secretAccessKey",
+  region: "us-east-1"
+});
+
+const lexruntime = new AWS.LexRuntime();
+let userId = uuidv4();
+
 // create LINE SDK config from env variables
 const config = {
-  channelAccessToken: 'J9ENTMHNs9y5XiRi85yC1i84HVq0q4HucK1gmrAWjl7mPDanJ6bDPsPeSDZ/Mm4wsN93BD+EyXI2/KYPwHNbwGY+Ib5i4gsnWX2ViljOhYGLJKkVUdbAh0JuXiayTkdoeyYRdSj0p/+WD2DFX0Y/ZwdB04t89/1O/w1cDnyilFU=',
+  channelAccessToken: 'y9t/8lqjQULyWDpgIyGPpYR926prKaM5NfzqI9UyBUyIxqLCwiPumIuQLqycdfvqsN93BD+EyXI2/KYPwHNbwGY+Ib5i4gsnWX2ViljOhYFw514YcuGHOBu2qZEaejXOcMjEKB5+VxvZEUoQ+sFjaQdB04t89/1O/w1cDnyilFU=',
   channelSecret: 'd4ad94455611c07577b82fe0aeb3dfe6',
 };
-
-// base URL for webhook server
-let baseURL = process.env.BASE_URL;
-
 // create LINE SDK client
 const client = new line.Client(config);
 
 // create Express app
-// about Express itself: https://expressjs.com/
 const app = express();
-
-// serve static and downloaded files
-app.use('/static', express.static('static'));
-app.use('/downloaded', express.static('downloaded'));
-
-app.get('/callback', (req, res) => res.end(`I'm listening. Please access with POST.`));
 
 // webhook callback
 app.post('/callback', line.middleware(config), (req, res) => {
@@ -87,434 +60,37 @@ function handleEvent(event) {
     return console.log("Test hook recieved: " + JSON.stringify(event.message));
   }
 
-  switch (event.type) {
-    case 'message':
-      const message = event.message;
-      switch (message.type) {
-        case 'text':
-          return handleText(message, event.replyToken, event.source);
-        case 'image':
-          return handleImage(message, event.replyToken);
-        case 'video':
-          return handleVideo(message, event.replyToken);
-        case 'audio':
-          return handleAudio(message, event.replyToken);
-        case 'location':
-          return handleLocation(message, event.replyToken);
-        case 'sticker':
-          return handleSticker(message, event.replyToken);
-        default:
-          throw new Error(`Unknown message: ${JSON.stringify(message)}`);
-      }
-
-    case 'follow':
-      return replyText(event.replyToken, 'Got followed event');
-
-    case 'unfollow':
-      return console.log(`Unfollowed this bot: ${JSON.stringify(event)}`);
-
-    case 'join':
-      return replyText(event.replyToken, `Joined ${event.source.type}`);
-
-    case 'leave':
-      return console.log(`Left: ${JSON.stringify(event)}`);
-
-    case 'postback':
-      let data = event.postback.data;
-      if (data === 'DATE' || data === 'TIME' || data === 'DATETIME') {
-        data += `(${JSON.stringify(event.postback.params)})`;
-      }
-      return replyText(event.replyToken, `Got postback: ${data}`);
-
-    case 'beacon':
-      return replyText(event.replyToken, `Got beacon: ${event.beacon.hwid}`);
-
-    default:
-      throw new Error(`Unknown event: ${JSON.stringify(event)}`);
+  if (event.type === 'message' && (event.message && event.message.type === 'text')) {
+    return handleText(event.message, event.replyToken, event.source);
+  }
+  else {
+    replyText(replyToken, `Unknown event: ${JSON.stringify(event)}`);
+    throw new Error(`Unknown event: ${JSON.stringify(event)}`);
   }
 }
 
-function handleText(message, replyToken, source) {
-  const buttonsImageURL = `${baseURL}/static/buttons/1040.jpg`;
-
-  switch (message.text) {
-    case 'profile':
-      if (source.userId) {
-        return client.getProfile(source.userId)
-          .then((profile) => replyText(
-            replyToken,
-            [
-              `Display name: ${profile.displayName}`,
-              `Status message: ${profile.statusMessage}`,
-            ]
-          ));
-      } else {
-        return replyText(replyToken, 'Bot can\'t use profile API without user ID');
-      }
-    case 'buttons':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'template',
-          altText: 'Buttons alt text',
-          template: {
-            type: 'buttons',
-            thumbnailImageUrl: buttonsImageURL,
-            title: 'My button sample',
-            text: 'Hello, my button',
-            actions: [
-              { label: 'Go to line.me', type: 'uri', uri: 'https://line.me' },
-              { label: 'Say hello1', type: 'postback', data: 'hello こんにちは' },
-              { label: '言 hello2', type: 'postback', data: 'hello こんにちは', text: 'hello こんにちは' },
-              { label: 'Say message', type: 'message', text: 'Rice=米' },
-            ],
-          },
-        }
-      );
-    case 'confirm':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'template',
-          altText: 'Confirm alt text',
-          template: {
-            type: 'confirm',
-            text: 'Do it?',
-            actions: [
-              { label: 'Yes', type: 'message', text: 'Yes!' },
-              { label: 'No', type: 'message', text: 'No!' },
-            ],
-          },
-        }
-      )
-    case 'carousel':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'template',
-          altText: 'Carousel alt text',
-          template: {
-            type: 'carousel',
-            columns: [
-              {
-                thumbnailImageUrl: buttonsImageURL,
-                title: 'hoge',
-                text: 'fuga',
-                actions: [
-                  { label: 'Go to line.me', type: 'uri', uri: 'https://line.me' },
-                  { label: 'Say hello1', type: 'postback', data: 'hello こんにちは' },
-                ],
-              },
-              {
-                thumbnailImageUrl: buttonsImageURL,
-                title: 'hoge',
-                text: 'fuga',
-                actions: [
-                  { label: '言 hello2', type: 'postback', data: 'hello こんにちは', text: 'hello こんにちは' },
-                  { label: 'Say message', type: 'message', text: 'Rice=米' },
-                ],
-              },
-            ],
-          },
-        }
-      );
-    case 'image carousel':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'template',
-          altText: 'Image carousel alt text',
-          template: {
-            type: 'image_carousel',
-            columns: [
-              {
-                imageUrl: buttonsImageURL,
-                action: { label: 'Go to LINE', type: 'uri', uri: 'https://line.me' },
-              },
-              {
-                imageUrl: buttonsImageURL,
-                action: { label: 'Say hello1', type: 'postback', data: 'hello こんにちは' },
-              },
-              {
-                imageUrl: buttonsImageURL,
-                action: { label: 'Say message', type: 'message', text: 'Rice=米' },
-              },
-              {
-                imageUrl: buttonsImageURL,
-                action: {
-                  label: 'datetime',
-                  type: 'datetimepicker',
-                  data: 'DATETIME',
-                  mode: 'datetime',
-                },
-              },
-            ]
-          },
-        }
-      );
-    case 'datetime':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'template',
-          altText: 'Datetime pickers alt text',
-          template: {
-            type: 'buttons',
-            text: 'Select date / time !',
-            actions: [
-              { type: 'datetimepicker', label: 'date', data: 'DATE', mode: 'date' },
-              { type: 'datetimepicker', label: 'time', data: 'TIME', mode: 'time' },
-              { type: 'datetimepicker', label: 'datetime', data: 'DATETIME', mode: 'datetime' },
-            ],
-          },
-        }
-      );
-    case 'imagemap':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'imagemap',
-          baseUrl: `${baseURL}/static/rich`,
-          altText: 'Imagemap alt text',
-          baseSize: { width: 1040, height: 1040 },
-          actions: [
-            { area: { x: 0, y: 0, width: 520, height: 520 }, type: 'uri', linkUri: 'https://store.line.me/family/manga/en' },
-            { area: { x: 520, y: 0, width: 520, height: 520 }, type: 'uri', linkUri: 'https://store.line.me/family/music/en' },
-            { area: { x: 0, y: 520, width: 520, height: 520 }, type: 'uri', linkUri: 'https://store.line.me/family/play/en' },
-            { area: { x: 520, y: 520, width: 520, height: 520 }, type: 'message', text: 'URANAI!' },
-          ],
-          video: {
-            originalContentUrl: `${baseURL}/static/imagemap/video.mp4`,
-            previewImageUrl: `${baseURL}/static/imagemap/preview.jpg`,
-            area: {
-              x: 280,
-              y: 385,
-              width: 480,
-              height: 270,
-            },
-            externalLink: {
-              linkUri: 'https://line.me',
-              label: 'LINE'
-            }
-          },
-        }
-      );
-    case 'bye':
-      requestJson = {
-        "messageVersion": "1.0",
-        "invocationSource": "DialogCodeHook",
-        "userId": "John",
-        "sessionAttributes": {},
-        "bot": {
-          "name": "BookTrip",
-          "alias": "$LATEST",
-          "version": "$LATEST"
-        },
-        "outputDialogMode": "Text",
-        "currentIntent": {
-          "name": "BookCar",
-          "slots": {
-            "PickUpDate": null,
-            "PickUpCity": null,
-            "ReturnDate": null,
-            "CarType": null,
-            "DriverAge": null
-          },
-          "confirmationStatus": "None"
-        }
-      };
-      replyText(replyToken, "Cancelled");
-    default:
-      console.log(`Echo message to ${replyToken}: ${message.text}`);
-
-      let nullObj = getNullObject(requestJson.currentIntent.slots);
-      if (nullObj === "PickUpCity") {
-        requestJson.currentIntent.slots.PickUpCity = message.text;
-      }
-      else if (nullObj === "PickUpDate") {
-        requestJson.currentIntent.slots.PickUpDate = message.text;
-      }
-      else if (nullObj === "ReturnDate") {
-        requestJson.currentIntent.slots.ReturnDate = message.text;
-      }
-
-
-      resultMsg = axios.post('https://8uhh64u2h5.execute-api.us-east-1.amazonaws.com/dev/callback', requestJson)
-        .then((res) => {
-          console.log('----res', res);
-          requestJson.currentIntent.slots = res.data.dialogAction.slots;
-          let replyMsg = null;
-
-          if (res.data.dialogAction.slots.PickUpCity === null) {
-            replyMsg = res.data.dialogAction && res.data.dialogAction.message && res.data.dialogAction.message.content;
-          } else if (res.data.dialogAction.slots.PickUpDate === null) {
-            replyMsg = res.data.dialogAction && res.data.dialogAction.message && res.data.dialogAction.message.content || "Please provide pickup date";
-          } else if (res.data.dialogAction.slots.ReturnDate === null) {
-            replyMsg = res.data.dialogAction && res.data.dialogAction.message && res.data.dialogAction.message.content || "Please provide Return date";
-          }
-
-          console.log(`-----------Error: `, res.data.dialogAction && res.data.dialogAction.message && res.data.dialogAction.message.content);
-          replyText(replyToken, res.data.dialogAction && res.data.dialogAction.message && res.data.dialogAction.message.content || replyMsg)
-        })
-        .catch((error) => {
-          console.error(error)
-        });
-  }
+async function handleText(message, replyToken, source) {
+  let substrings = ['Book','book','Reserve','reserve'];
+  if (new RegExp(substrings.join("|")).test(message.text)) {
+    userId = uuidv4();
 }
+  var params = {
+    botAlias: 'PrimeCabBook', /* required, has to be '$LATEST' */
+    botName: 'BookAPrimeTrip', /* required, the name of you bot */
+    inputText: message.text, /* required, your text */
+    userId: userId, /* required, arbitrary identifier */
+  };
 
-function getNullObject(obj) {
-  if (obj.PickUpCity === null || obj.PickUpCity === "c") {
-    return "PickUpCity";
-  }
-  if (obj.PickUpDate === null) {
-    return "PickUpDate";
-  } if (obj.ReturnDate === null) {
-    return "ReturnDate";
-  }
-}
-
-function handleImage(message, replyToken) {
-  let getContent;
-  if (message.contentProvider.type === "line") {
-    const downloadPath = path.join(__dirname, 'downloaded', `${message.id}.jpg`);
-    const previewPath = path.join(__dirname, 'downloaded', `${message.id}-preview.jpg`);
-
-    getContent = downloadContent(message.id, downloadPath)
-      .then((downloadPath) => {
-        // ImageMagick is needed here to run 'convert'
-        // Please consider about security and performance by yourself
-        cp.execSync(`convert -resize 240x jpeg:${downloadPath} jpeg:${previewPath}`);
-
-        return {
-          originalContentUrl: baseURL + '/downloaded/' + path.basename(downloadPath),
-          previewImageUrl: baseURL + '/downloaded/' + path.basename(previewPath),
-        };
-      });
-  } else if (message.contentProvider.type === "external") {
-    getContent = Promise.resolve(message.contentProvider);
-  }
-
-  return getContent
-    .then(({ originalContentUrl, previewImageUrl }) => {
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'image',
-          originalContentUrl,
-          previewImageUrl,
-        }
-      );
-    });
-}
-
-function handleVideo(message, replyToken) {
-  let getContent;
-  if (message.contentProvider.type === "line") {
-    const downloadPath = path.join(__dirname, 'downloaded', `${message.id}.mp4`);
-    const previewPath = path.join(__dirname, 'downloaded', `${message.id}-preview.jpg`);
-
-    getContent = downloadContent(message.id, downloadPath)
-      .then((downloadPath) => {
-        // FFmpeg and ImageMagick is needed here to run 'convert'
-        // Please consider about security and performance by yourself
-        cp.execSync(`convert mp4:${downloadPath}[0] jpeg:${previewPath}`);
-
-        return {
-          originalContentUrl: baseURL + '/downloaded/' + path.basename(downloadPath),
-          previewImageUrl: baseURL + '/downloaded/' + path.basename(previewPath),
-        }
-      });
-  } else if (message.contentProvider.type === "external") {
-    getContent = Promise.resolve(message.contentProvider);
-  }
-
-  return getContent
-    .then(({ originalContentUrl, previewImageUrl }) => {
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'video',
-          originalContentUrl,
-          previewImageUrl,
-        }
-      );
-    });
-}
-
-function handleAudio(message, replyToken) {
-  let getContent;
-  if (message.contentProvider.type === "line") {
-    const downloadPath = path.join(__dirname, 'downloaded', `${message.id}.m4a`);
-
-    getContent = downloadContent(message.id, downloadPath)
-      .then((downloadPath) => {
-        return {
-          originalContentUrl: baseURL + '/downloaded/' + path.basename(downloadPath),
-        };
-      });
-  } else {
-    getContent = Promise.resolve(message.contentProvider);
-  }
-
-  return getContent
-    .then(({ originalContentUrl }) => {
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'audio',
-          originalContentUrl,
-          duration: message.duration,
-        }
-      );
-    });
-}
-
-function downloadContent(messageId, downloadPath) {
-  return client.getMessageContent(messageId)
-    .then((stream) => new Promise((resolve, reject) => {
-      const writable = fs.createWriteStream(downloadPath);
-      stream.pipe(writable);
-      stream.on('end', () => resolve(downloadPath));
-      stream.on('error', reject);
-    }));
-}
-
-function handleLocation(message, replyToken) {
-  return client.replyMessage(
-    replyToken,
-    {
-      type: 'location',
-      title: message.title,
-      address: message.address,
-      latitude: message.latitude,
-      longitude: message.longitude,
-    }
-  );
-}
-
-function handleSticker(message, replyToken) {
-  return client.replyMessage(
-    replyToken,
-    {
-      type: 'sticker',
-      packageId: message.packageId,
-      stickerId: message.stickerId,
-    }
-  );
+  lexruntime.postText(params, function (err, data) {
+    if (err) console.log(err, err.stack); // an error occurred
+    else {
+      replyText(replyToken, data.message)
+    }            // successful response
+  });
 }
 
 // listen on port
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
-  if (baseURL) {
-    console.log(`listening on ${baseURL}:${port}/callback`);
-  } else {
-    console.log("It seems that BASE_URL is not set. Connecting to ngrok...")
-    ngrok.connect(port, (err, url) => {
-      if (err) throw err;
-
-      baseURL = url;
-      console.log(`listening on ${baseURL}/callback`);
-    });
-  }
+  console.log(`listening on ${port}`);
 });
