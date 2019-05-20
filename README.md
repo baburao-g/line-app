@@ -1,6 +1,6 @@
-# Kitchen Sink Bot
+# Lex line Bot
 
-A kitchen-sink LINE bot example
+A lex LINE bot example
 
 ## Requirements
 
