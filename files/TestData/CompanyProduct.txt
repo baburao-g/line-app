@@ -1,7 +1,0 @@
-Company	Product	Income
-Nokia	System	485252
-Samsung	Mobile	462552561
-Sony	Tv	252845254
-REDMi	Cellphone	444454441
-Damro	Furniture	145214514
-Bharat	Electonics	544787874
