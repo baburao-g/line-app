@@ -1,0 +1,22 @@
+Issue Type,Issue key,Summary,Assignee,Status
+Bug,QA-503,No logs to display message is populated for every log view click,varudhini,To Do
+Bug,QA-499,Unable to view workflow history logs,varudhini,To Do
+Bug,QA-497,"While renaming a workflow found ""Something went wrong. Try again""",pravalika,Fixed
+Bug,QA-496,In export functionality only three table names are shown ,vinay.adepu,To Do
+Bug,QA-495,Orderby- In filter adding of a column in orderby clause is not working,varun,To Do
+Bug,QA-494,Unable to view logs of other user created workflows,aravinth.raja,To Do
+Bug,QA-493,Enhancement: Refresh button is needed in workflow monitoring,varudhini,To Do
+Bug,QA-492,Workflow- When table is added in join and run then status showing as table not found in Cassandra,varun,To Do
+Bug,QA-491,Export Log in Workflow Monitoring and its status always shown as Job Started or NOT_STARTED,aravinth.raja,To Do
+Bug,QA-490,Query sending wrong from Node to Spark,varun,To Do
+Bug,QA-488,"Log status, Workflow description, Time, User, Last status are not working",aravinth.raja,To Do
+Bug,QA-487,Tooltip and columns resizing is needed in workflow monitoring,varudhini,To Do
+Bug,QA-483,When user rename static column the same change should reflect in GroupBy,varudhini,Fixed
+Bug,QA-480,When user run transformation when static column added the status is showing as failed,varun,To Do
+Bug,QA-477,"Workflow_ Scheduling with past time and click on run, workflow is running successfully",sachin,To Do
+Bug,QA-475,Log tables and upload tables should not be shown in DTF source and target tables ,sachin,To Do
+Bug,QA-473,Suggestion dropdown alignment and highlighting issues,varudhini,To Do
+Task,QA-471,Enhancement: Target table primary key indication needed in DTF,vinay.adepu,To Do
+Bug,QA-468,force valid- When user click force valid and save then navigating to other shows invalid status,nitendra,To Do
+Bug,QA-445,"DTF- Issues in renaming, delete and duplicating transformations ",sachin,Review
+Bug,QA-442,DTF- Group name rename and delete are not working in sidebar,sachin,Review
